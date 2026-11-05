@@ -123,10 +123,12 @@
   });
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
 
-  // penanda panah arah
+  // penanda: sprite motor adventure (aset prototipe Kesawan) —
+  // gambar menghadap ke atas = arah bearing 0, jadi rotasi marker
+  // mengikuti bearing perjalanan persis seperti panah sebelumnya.
   var el = document.createElement('div');
   el.id = 'penanda';
-  el.innerHTML = '<svg viewBox="0 0 48 48" width="44" height="44"><circle cx="24" cy="24" r="13" fill="#17191C" stroke="#fff" stroke-width="3"/><path d="M24 13 L31 32 L24 27.5 L17 32 Z" fill="#17CE8F"/></svg>';
+  el.innerHTML = '<img src="aset-motor.png" alt="">';
   var marker = new maplibregl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'map' })
     .setLngLat(RUTE[0]).addTo(map);
 

@@ -49,6 +49,16 @@
     <div class="spd">kecepatan animasi <b id="labelKec">1×</b></div>
   </div>
   <input type="range" id="geser" min="0" max="1000" value="0">
+  <div class="row" style="margin-bottom:8px">
+    <span style="font-size:12px;color:#9DB4AA">Motor:</span>
+    <div class="grup" id="grupMotor" style="margin-left:6px">
+      <button data-motor="aset-motor.png">Adventure</button>
+      <button data-motor="motor-nmax.png" class="aktif">NMAX</button>
+      <button data-motor="motor-sport.png">Sport</button>
+      <button data-motor="motor-matic.png">Matic</button>
+      <button data-motor="motor-bebek.png">Bebek</button>
+    </div>
+  </div>
   <div class="row">
     <button id="btnMain" class="aktif">⏸ Jeda</button>
     <button id="btnKamera" class="aktif">Kamera: Ikuti</button>
@@ -128,7 +138,7 @@
   // mengikuti bearing perjalanan persis seperti panah sebelumnya.
   var el = document.createElement('div');
   el.id = 'penanda';
-  el.innerHTML = '<img src="aset-motor.png" alt="">';
+  el.innerHTML = '<img id="imgMotor" src="motor-nmax.png" alt="">';
   var marker = new maplibregl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'map' })
     .setLngLat(RUTE[0]).addTo(map);
 
@@ -189,6 +199,12 @@
     if (!ikuti) map.easeTo({ pitch: miring ? 58 : 0 });
   });
   elGeser.addEventListener('input', function () { jarak = TOTAL * (Number(elGeser.value) / 1000); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-motor]'), function (b) {
+    b.addEventListener('click', function () {
+      document.getElementById('imgMotor').src = b.getAttribute('data-motor');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-motor]'), function (x) { x.classList.toggle('aktif', x === b); });
+    });
+  });
   Array.prototype.forEach.call(document.querySelectorAll('[data-kec]'), function (b) {
     b.addEventListener('click', function () {
       kec = Number(b.getAttribute('data-kec'));

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Demo Replay Berkendara — OpenFreeMap · JEJAKRUTE</title>
+<link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#17191C;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+  #map{position:absolute;inset:0}
+  .maplibregl-ctrl-attrib{font-size:9px}
+  .chip{position:absolute;z-index:5;background:rgba(23,25,28,.92);color:#E8F5EF;border-radius:14px;box-shadow:0 4px 18px rgba(0,0,0,.35)}
+  #judul{top:12px;left:12px;padding:10px 14px;max-width:min(78vw,340px)}
+  #judul b{font-size:14px;letter-spacing:.4px}
+  #judul b span{color:#17CE8F}
+  #judul small{display:block;margin-top:2px;font-size:11px;color:#9DB4AA;line-height:1.45}
+  #status{top:12px;right:12px;padding:6px 10px;font-size:11px;color:#9DB4AA;border-radius:999px}
+  #status.ok{color:#17CE8F}
+  #status.err{color:#FF7A6B}
+  #panel{left:50%;transform:translateX(-50%);bottom:14px;width:min(94vw,430px);padding:12px 14px 10px}
+  #stats{display:flex;gap:16px;align-items:baseline;margin-bottom:8px}
+  #stats .km{font-size:20px;font-weight:700;color:#fff}
+  #stats .km small{font-size:11px;color:#9DB4AA;font-weight:400}
+  #stats .spd{margin-left:auto;font-size:12px;color:#9DB4AA}
+  #stats .spd b{color:#17CE8F;font-size:14px}
+  input[type=range]{width:100%;accent-color:#17CE8F;margin:2px 0 8px}
+  .row{display:flex;gap:8px;align-items:center}
+  button{background:#23262B;color:#E8F5EF;border:1px solid #34383F;border-radius:999px;padding:8px 14px;font-size:13px;cursor:pointer}
+  button.aktif{background:#17CE8F;color:#0B1B12;border-color:#17CE8F;font-weight:700}
+  #btnMain{flex:0 0 auto;min-width:96px}
+  .grup{display:flex;gap:4px;margin-left:auto}
+  .grup button{padding:7px 10px;font-size:12px}
+  #penanda{width:44px;height:44px;pointer-events:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.45))}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="chip" id="judul">
+  <b>JEJAK<span>RUTE</span> · Demo Replay Berkendara</b>
+  <small>Basemap OpenFreeMap (OpenStreetMap) + gedung 3D, kamera miring mengikuti rute. Contoh rute: putaran Lapangan Merdeka – Kesawan, Medan (9,6 km, geometri jalan asli).</small>
+</div>
+<div class="chip" id="status">menyiapkan…</div>
+
+<div class="chip" id="panel">
+  <div id="stats">
+    <div class="km"><span id="jarakTempuh">0,00</span> <small>/ 9,59 km</small></div>
+    <div class="spd">kecepatan animasi <b id="labelKec">1×</b></div>
+  </div>
+  <input type="range" id="geser" min="0" max="1000" value="0">
+  <div class="row">
+    <button id="btnMain" class="aktif">⏸ Jeda</button>
+    <button id="btnKamera" class="aktif">Kamera: Ikuti</button>
+    <button id="btnMiring" class="aktif">3D</button>
+    <div class="grup">
+      <button data-kec="0.5">0,5×</button>
+      <button data-kec="1" class="aktif">1×</button>
+      <button data-kec="2">2×</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.__galat = [];
+  window.addEventListener('error', function (e) {
+    window.__galat.push(e.message || 'galat');
+    var s = document.getElementById('status');
+    if (s) { s.textContent = '⚠ ' + (e.message || 'galat tak dikenal'); s.className = 'chip err'; }
+  });
+  function __muatCadangan() {
+    if (window.maplibregl) return;
+    document.write('<script src="https:\/\/unpkg.com\/maplibre-gl@5\/dist\/maplibre-gl.js"><\/script>');
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5/dist/maplibre-gl.js" onerror="__muatCadangan()"></script>
+<script>
+(function () {
+  'use strict';
+  var status = document.getElementById('status');
+  function setStatus(teks, kelas) { status.textContent = teks; status.className = 'chip' + (kelas ? ' ' + kelas : ''); }
+  if (!window.maplibregl) { setStatus('⚠ MapLibre gagal dimuat', 'err'); return; }
+
+  var RUTE = [[98.67449,3.59243],[98.67457,3.59217],[98.67565,3.59252],[98.67574,3.59256],[98.67579,3.59259],[98.67581,3.59259],[98.67597,3.59266],[98.67602,3.59268],[98.6763,3.59278],[98.67636,3.59288],[98.67657,3.59309],[98.67643,3.5935],[98.6764,3.59358],[98.6764,3.59359],[98.67638,3.59364],[98.67636,3.5937],[98.67628,3.59392],[98.67624,3.59402],[98.67619,3.59421],[98.67615,3.5943],[98.67609,3.59452],[98.67592,3.59497],[98.67589,3.59507],[98.67586,3.59515],[98.67584,3.59522],[98.67569,3.59561],[98.67564,3.59573],[98.67528,3.59545],[98.67524,3.59542],[98.67481,3.59509],[98.6747,3.59501],[98.67455,3.59495],[98.67434,3.59486],[98.67417,3.59479],[98.67399,3.59472],[98.67389,3.59469],[98.67387,3.59468],[98.67381,3.59467],[98.67366,3.59464],[98.67356,3.59464],[98.67335,3.59463],[98.6733,3.59463],[98.67306,3.59462],[98.67296,3.59461],[98.67284,3.5946],[98.67255,3.59457],[98.67227,3.59454],[98.67214,3.59451],[98.67206,3.59448],[98.67177,3.59438],[98.67163,3.59431],[98.67154,3.59425],[98.67116,3.59397],[98.67101,3.59385],[98.6709,3.59375],[98.67075,3.59368],[98.67057,3.59364],[98.66968,3.5936],[98.66889,3.59341],[98.66889,3.59318],[98.66889,3.59302],[98.6689,3.59294],[98.66893,3.59284],[98.66903,3.59276],[98.66965,3.59263],[98.66984,3.59257],[98.66996,3.59253],[98.67048,3.59239],[98.67059,3.59236],[98.67068,3.59233],[98.67075,3.59231],[98.6708,3.59227],[98.67096,3.59203],[98.67109,3.59183],[98.67118,3.59166],[98.6713,3.59146],[98.67147,3.5911],[98.67151,3.59102],[98.67166,3.59066],[98.6718,3.59041],[98.67194,3.59026],[98.67204,3.59008],[98.67215,3.58996],[98.67229,3.58986],[98.67251,3.58977],[98.67258,3.58976],[98.67263,3.58975],[98.6732,3.58968],[98.67332,3.58967],[98.67368,3.58964],[98.67382,3.58964],[98.67437,3.58967],[98.67475,3.58974],[98.67494,3.58976],[98.67502,3.58977],[98.67511,3.58973],[98.67516,3.58973],[98.67567,3.58977],[98.6757,3.58977],[98.67628,3.58986],[98.6771,3.58999],[98.67739,3.59004],[98.67747,3.59006],[98.6775,3.59007],[98.6777,3.59014],[98.6775,3.59064],[98.67747,3.59074],[98.67744,3.59081],[98.67738,3.59098],[98.67737,3.59106],[98.67737,3.59108],[98.67736,3.59109],[98.67739,3.59115],[98.67742,3.59121],[98.67755,3.59138],[98.67758,3.59142],[98.67762,3.59144],[98.67783,3.59152],[98.67797,3.59156],[98.67829,3.59167],[98.67836,3.5917],[98.67855,3.59176],[98.67885,3.59185],[98.67897,3.59186],[98.67907,3.59182],[98.67914,3.59174],[98.67916,3.59168],[98.67921,3.59161],[98.67946,3.59091],[98.67946,3.5909],[98.67951,3.5909],[98.67952,3.59089],[98.67956,3.59076],[98.67961,3.59061],[98.67963,3.59055],[98.67961,3.59049],[98.67974,3.59009],[98.67975,3.59004],[98.67979,3.58993],[98.67982,3.58984],[98.67983,3.58975],[98.67982,3.58967],[98.6798,3.58962],[98.67974,3.58955],[98.67966,3.58949],[98.67959,3.58945],[98.67927,3.58928],[98.67926,3.58927],[98.67914,3.58922],[98.67903,3.58916],[98.67871,3.58902],[98.67859,3.58896],[98.67856,3.58895],[98.67828,3.58882],[98.67822,3.5888],[98.67819,3.58887],[98.6781,3.5891],[98.67779,3.58991],[98.67778,3.58993],[98.67777,3.58995],[98.67771,3.59009],[98.6777,3.59014],[98.6775,3.59064],[98.67747,3.59074],[98.67744,3.59081],[98.67738,3.59098],[98.67733,3.59102],[98.67731,3.59104],[98.67729,3.59107],[98.67728,3.5911],[98.67725,3.59117],[98.67715,3.59145],[98.67712,3.59152],[98.67696,3.59194],[98.67687,3.59221],[98.67685,3.59226],[98.67685,3.59232],[98.67684,3.59239],[98.67666,3.59285],[98.67663,3.59292],[98.67689,3.59302],[98.67739,3.59321],[98.67779,3.59335],[98.67827,3.59352],[98.67832,3.59343],[98.6784,3.5933],[98.67849,3.59322],[98.6786,3.5931],[98.67886,3.59286],[98.67907,3.59228],[98.6791,3.59221],[98.67916,3.59202],[98.67924,3.5918],[98.6793,3.59165],[98.6795,3.59113],[98.67971,3.59056],[98.6798,3.59033],[98.67988,3.59007],[98.67995,3.58986],[98.67998,3.58978],[98.68003,3.5897],[98.68005,3.58965],[98.68007,3.58963],[98.68011,3.58957],[98.68016,3.5895],[98.6802,3.58943],[98.68033,3.58916],[98.68051,3.58881],[98.68075,3.58834],[98.68104,3.58764],[98.68119,3.58727],[98.68131,3.58693],[98.68186,3.58551],[98.68188,3.58547],[98.68189,3.58544],[98.68191,3.58543],[98.68193,3.58541],[98.68195,3.58541],[98.68197,3.58541],[98.68199,3.58542],[98.68205,3.58546],[98.68223,3.58557],[98.68244,3.5857],[98.68276,3.5859],[98.68287,3.58597],[98.68297,3.58604],[98.68304,3.58608],[98.6835,3.58635],[98.68395,3.58651],[98.68404,3.58654],[98.68445,3.58668],[98.6845,3.5867],[98.68459,3.58673],[98.68511,3.5869],[98.6857,3.58547],[98.68525,3.58538],[98.68513,3.58536],[98.68495,3.58533],[98.68447,3.58523],[98.68403,3.58515],[98.68347,3.58504],[98.68362,3.5846],[98.68364,3.58456],[98.68374,3.58428],[98.6838,3.58414],[98.68398,3.58369],[98.68417,3.58319],[98.6842,3.58314],[98.68436,3.58279],[98.68443,3.58265],[98.68461,3.58237],[98.68465,3.5823],[98.68461,3.58229],[98.68411,3.58211],[98.68406,3.58209],[98.68368,3.58193],[98.68363,3.58191],[98.68357,3.58189],[98.68356,3.58188],[98.68344,3.58183],[98.68334,3.58177],[98.68301,3.58158],[98.68296,3.58158],[98.68291,3.58157],[98.68264,3.58142],[98.68261,3.58142],[98.68258,3.58143],[98.6824,3.58152],[98.68228,3.58173],[98.68211,3.58194],[98.68195,3.58187],[98.68188,3.58184],[98.68136,3.58162],[98.68131,3.58171],[98.6807,3.58274],[98.68059,3.58293],[98.68043,3.58322],[98.68018,3.58368],[98.67984,3.58432],[98.67981,3.58437],[98.67909,3.58416],[98.67879,3.58407],[98.67866,3.58403],[98.6786,3.58403],[98.67854,3.58404],[98.67845,3.58406],[98.67826,3.58414],[98.67818,3.58416],[98.67809,3.58418],[98.67798,3.58418],[98.6776,3.58418],[98.67746,3.58418],[98.67716,3.58419],[98.67697,3.58419],[98.67659,3.5842],[98.67618,3.58419],[98.67607,3.58419],[98.67601,3.58417],[98.67594,3.58414],[98.67567,3.58395],[98.67536,3.58373],[98.67533,3.58371],[98.67527,3.58368],[98.67526,3.58367],[98.67518,3.58364],[98.67494,3.58358],[98.67476,3.58355],[98.67465,3.58354],[98.67431,3.58354],[98.67404,3.58354],[98.67389,3.58354],[98.67374,3.58354],[98.67302,3.58356],[98.67279,3.58357],[98.67279,3.58365],[98.6728,3.58375],[98.6728,3.58383],[98.67282,3.58427],[98.67282,3.58434],[98.67283,3.58461],[98.67283,3.58466],[98.67283,3.58473],[98.67284,3.58486],[98.67285,3.585],[98.67287,3.5855],[98.67287,3.58557],[98.67288,3.58578],[98.6729,3.58603],[98.67291,3.58612],[98.67294,3.58669],[98.67296,3.58688],[98.67298,3.58704],[98.67301,3.58733],[98.67304,3.58787],[98.67305,3.58797],[98.67305,3.58808],[98.67305,3.58828],[98.67307,3.58852],[98.67309,3.58913],[98.67311,3.5894],[98.67313,3.58949],[98.67317,3.5896],[98.6732,3.58968],[98.67332,3.58967],[98.67368,3.58964],[98.67382,3.58964],[98.67437,3.58967],[98.67475,3.58974],[98.67494,3.58976],[98.67502,3.58977],[98.67511,3.58973],[98.67516,3.58973],[98.67567,3.58977],[98.6757,3.58977],[98.67628,3.58986],[98.6771,3.58999],[98.67739,3.59004],[98.67747,3.59006],[98.6775,3.59007],[98.6777,3.59014],[98.6775,3.59064],[98.67747,3.59074],[98.67744,3.59081],[98.67738,3.59098],[98.67733,3.59102],[98.67731,3.59104],[98.67729,3.59107],[98.67728,3.5911],[98.67725,3.59117],[98.67715,3.59145],[98.67712,3.59152],[98.67696,3.59194],[98.67687,3.59221],[98.67685,3.59226],[98.67685,3.59232],[98.67684,3.59239],[98.67666,3.59285],[98.67638,3.59278],[98.6763,3.59278],[98.67602,3.59268],[98.67597,3.59266],[98.67581,3.59259],[98.67579,3.59259],[98.67574,3.59256],[98.67565,3.59252],[98.67457,3.59217],[98.67449,3.59243]];
+  var MINT = '#17CE8F';
+  var DURASI_DASAR = 55; // detik untuk satu putaran penuh pada 1x
+
+  // --- geometri: jarak kumulatif + interpolasi ---
+  function hav(a, b) {
+    var R = 6371000, p1 = a[1] * Math.PI / 180, p2 = b[1] * Math.PI / 180;
+    var dp = p2 - p1, dl = (b[0] - a[0]) * Math.PI / 180;
+    var h = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  var kum = [0];
+  for (var i = 1; i < RUTE.length; i++) kum.push(kum[i - 1] + hav(RUTE[i - 1], RUTE[i]));
+  var TOTAL = kum[kum.length - 1];
+
+  function posisiPada(d) {
+    d = Math.max(0, Math.min(TOTAL, d));
+    var lo = 0, hi = kum.length - 1;
+    while (lo < hi - 1) { var mid = (lo + hi) >> 1; if (kum[mid] <= d) lo = mid; else hi = mid; }
+    var seg = kum[hi] - kum[lo] || 1, t = (d - kum[lo]) / seg;
+    var a = RUTE[lo], b = RUTE[hi];
+    return {
+      lngLat: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t],
+      bearing: Math.atan2(b[0] - a[0], b[1] - a[1]) * 180 / Math.PI
+    };
+  }
+  function potongRute(d) {
+    var pts = [], k;
+    for (k = 0; k < RUTE.length; k++) { if (kum[k] <= d) pts.push(RUTE[k]); else break; }
+    pts.push(posisiPada(d).lngLat);
+    return pts;
+  }
+
+  setStatus('memuat peta…');
+  var map = new maplibregl.Map({
+    container: 'map',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
+    center: RUTE[0], zoom: 16.6, pitch: 58, bearing: 0,
+    attributionControl: { compact: true }
+  });
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
+
+  // penanda panah arah
+  var el = document.createElement('div');
+  el.id = 'penanda';
+  el.innerHTML = '<svg viewBox="0 0 48 48" width="44" height="44"><circle cx="24" cy="24" r="13" fill="#17191C" stroke="#fff" stroke-width="3"/><path d="M24 13 L31 32 L24 27.5 L17 32 Z" fill="#17CE8F"/></svg>';
+  var marker = new maplibregl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'map' })
+    .setLngLat(RUTE[0]).addTo(map);
+
+  var maju = true, ikuti = true, miring = true, kec = 1, jarak = 0, last = null;
+  var elJarak = document.getElementById('jarakTempuh'), elGeser = document.getElementById('geser');
+  var sumberProgres = { type: 'Feature', geometry: { type: 'LineString', coordinates: [RUTE[0], RUTE[0]] } };
+
+  map.on('load', function () {
+    map.addSource('rute-penuh', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: RUTE } } });
+    map.addLayer({ id: 'rute-bayangan', type: 'line', source: 'rute-penuh', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#FFFFFF', 'line-width': 10, 'line-opacity': 0.85 } });
+    map.addLayer({ id: 'rute-dasar', type: 'line', source: 'rute-penuh', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': MINT, 'line-width': 6, 'line-opacity': 0.30 } });
+    map.addSource('rute-progres', { type: 'geojson', data: sumberProgres });
+    map.addLayer({ id: 'rute-progres', type: 'line', source: 'rute-progres', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': MINT, 'line-width': 6 } });
+    setStatus('peta siap ✓', 'ok');
+    requestAnimationFrame(bingkai);
+  });
+  map.on('error', function (e) { setStatus('⚠ ' + ((e && e.error && e.error.message) || 'galat peta'), 'err'); });
+
+  var bearingHalus = 0;
+  function bingkai(ts) {
+    if (last === null) last = ts;
+    var dt = Math.min(0.05, (ts - last) / 1000); last = ts;
+    if (maju) {
+      jarak += (TOTAL / DURASI_DASAR) * kec * dt;
+      if (jarak >= TOTAL) jarak = 0; // putar ulang
+    }
+    var p = posisiPada(jarak);
+    marker.setLngLat(p.lngLat);
+    marker.setRotation(p.bearing);
+    var beda = ((p.bearing - bearingHalus + 540) % 360) - 180;
+    bearingHalus += beda * 0.08;
+    var src = map.getSource('rute-progres');
+    if (src) src.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: potongRute(jarak) } });
+    if (ikuti) {
+      map.jumpTo({ center: p.lngLat, bearing: bearingHalus, pitch: miring ? 58 : 0, zoom: 16.6 });
+    }
+    elJarak.textContent = (jarak / 1000).toFixed(2).replace('.', ',');
+    if (document.activeElement !== elGeser) elGeser.value = Math.round(jarak / TOTAL * 1000);
+    requestAnimationFrame(bingkai);
+  }
+
+  var btnMain = document.getElementById('btnMain');
+  btnMain.addEventListener('click', function () {
+    maju = !maju;
+    btnMain.textContent = maju ? '⏸ Jeda' : '▶ Putar';
+    btnMain.classList.toggle('aktif', maju);
+  });
+  document.getElementById('btnKamera').addEventListener('click', function () {
+    ikuti = !ikuti;
+    this.textContent = ikuti ? 'Kamera: Ikuti' : 'Kamera: Bebas';
+    this.classList.toggle('aktif', ikuti);
+    if (!ikuti) map.easeTo({ pitch: miring ? 58 : 0 });
+  });
+  document.getElementById('btnMiring').addEventListener('click', function () {
+    miring = !miring;
+    this.textContent = miring ? '3D' : '2D';
+    this.classList.toggle('aktif', miring);
+    if (!ikuti) map.easeTo({ pitch: miring ? 58 : 0 });
+  });
+  elGeser.addEventListener('input', function () { jarak = TOTAL * (Number(elGeser.value) / 1000); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-kec]'), function (b) {
+    b.addEventListener('click', function () {
+      kec = Number(b.getAttribute('data-kec'));
+      document.getElementById('labelKec').textContent = String(kec).replace('.', ',') + '×';
+      Array.prototype.forEach.call(document.querySelectorAll('[data-kec]'), function (x) { x.classList.toggle('aktif', x === b); });
+    });
+  });
+})();
+</script>
+</body>
+</html>
